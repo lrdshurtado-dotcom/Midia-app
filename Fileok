@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b0b0f">
+<title>Mi Día</title>
+<style>
+:root{--bg:#0b0b0f;--card:#17171d;--card2:#1f1f27;--text:#f2f2f7;--muted:#9a9aa5;--accent:#4f8cff;--med:#4f8cff;--meal:#ff9f0a;--sport:#30d158;--equip:#bf5af2;--study:#5e5ce6}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding-bottom:90px}
+header{padding:18px 16px 8px;font-size:28px;font-weight:800}
+.sub{color:var(--muted);font-size:14px;padding:0 16px 10px}
+main{padding:0 12px}
+.card{background:var(--card);border-radius:18px;padding:14px;margin:10px 0}
+.progress{height:12px;background:var(--card2);border-radius:99px;overflow:hidden}
+.progress>div{height:100%;background:var(--accent);transition:width .3s}
+.big{font-size:42px;font-weight:800;text-align:center;margin:6px 0}
+.center{text-align:center;color:var(--muted);font-size:14px}
+h2{font-size:16px;margin:4px 0 10px;display:flex;align-items:center;gap:8px}
+.row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #26262e}
+.row:last-child{border-bottom:0}
+.check{width:34px;height:34px;border-radius:50%;border:2px solid #4a4a55;background:none;color:var(--muted);font-size:18px;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.check.on{background:var(--c,var(--accent));border-color:var(--c,var(--accent));color:#fff}
+.name{flex:1;min-width:0}
+.name b{display:block;font-weight:600}
+.name small{color:var(--muted);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plus{background:var(--card2);border:0;color:var(--text);width:34px;height:34px;border-radius:50%;font-size:18px}
+nav{position:fixed;bottom:0;left:0;right:0;background:rgba(15,15,20,.92);backdrop-filter:blur(14px);display:flex;border-top:1px solid #26262e;padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;color:var(--muted);font-size:11px;padding:9px 0 7px;display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button.active{color:var(--accent)}
+nav span{font-size:20px}
+button.primary{width:100%;padding:14px;border:0;border-radius:14px;background:var(--accent);color:#fff;font-size:16px;font-weight:600}
+input,select,textarea{width:100%;background:var(--card2);border:1px solid #2c2c35;color:var(--text);border-radius:12px;padding:12px;font-size:16px;margin:6px 0}
+textarea{min-height:80px}
+label{font-size:13px;color:var(--muted)}
+.bar{display:flex;align-items:center;gap:8px;margin:8px 0}
+.bar .track{flex:1;height:10px;background:var(--card2);border-radius:99px;overflow:hidden}
+.bar .track>div{height:100%;background:var(--accent)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.day{aspect-ratio:1;border-radius:12px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--muted)}
+.day.has{color:#fff;font-weight:700}
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-end}
+.sheet.open{display:flex}
+.sheet-inner{background:var(--card);width:100%;border-radius:22px 22px 0 0;padding:18px;max-height:88vh;overflow:auto}
+.small{font-size:13px;color:var(--muted)}
+.fab{position:fixed;right:16px;bottom:96px;width:54px;height:54px;border-radius:50%;background:var(--accent);color:#fff;border:0;font-size:26px;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+</style>
+</head>
+<body>
+<header id="title">Hoy</header>
+<div class="sub" id="subtitle"></div>
+<main id="view"></main>
+<button class="fab" id="fab">+</button>
+<nav id="nav"></nav>
+<div class="sheet" id="sheet"><div class="sheet-inner" id="sheetInner"></div></div>
+
+<script>
+(function(){
+"use strict";
+
+var CATS = {
+  medication: {t:"Medicación", e:"💊", c:"var(--med)"},
+  meal:       {t:"Comidas",    e:"🍽", c:"var(--meal)"},
+  sport:      {t:"Deporte",    e:"🏃", c:"var(--sport)"},
+  equipment:  {t:"Maquinaria", e:"🏋️", c:"var(--equip)"},
+  study:      {t:"Estudios",   e:"📚", c:"var(--study)"}
+};
+
+var DEFAULTS = [
+  {id:"m1", cat:"medication", name:"Medicamento A", emoji:"💊", active:true},
+  {id:"f1", cat:"meal",       name:"Desayuno",      emoji:"☕️", active:true},
+  {id:"f2", cat:"meal",       name:"Comida",        emoji:"🍽", active:true},
+  {id:"f3", cat:"meal",       name:"Merienda",      emoji:"🍎", active:true},
+  {id:"f4", cat:"meal",       name:"Cena",          emoji:"🌙", active:true},
+  {id:"d1", cat:"sport",      name:"Caminar",       emoji:"🚶", active:true},
+  {id:"d2", cat:"sport",      name:"Bicicleta",     emoji:"🚴", active:true},
+  {id:"q1", cat:"equipment",  name:"Cinta de correr",emoji:"🏃", active:true},
+  {id:"e1", cat:"study",      name:"Inglés",        emoji:"🇬🇧", active:true}
+];
+
+var db = JSON.parse(localStorage.getItem("midia") || "null");
+if (!db) {
+  db = {defs: DEFAULTS, logs: {}, goals: []};
+  localStorage.setItem("midia", JSON.stringify(db));
+}
+
+function save() {
+  localStorage.setItem("midia", JSON.stringify(db));
+}
+
+function todayKey(d) {
+  d = d || new Date();
+  var offset = d.getTimezoneOffset() * 60000;
+  var local = new Date(d.getTime() - offset);
+  return local.toISOString().slice(0,10);
+}
+
+function dayLogs(k) {
+  return db.logs[k] || {};
+}
+
+function progress(k) {
+  var act = db.defs.filter(function(x){return x.active;});
+  var done = 0;
+  act.forEach(function(d){
+    var l = dayLogs(k)[d.id];
+    if (l && l.done) done++;
+  });
+  var total = act.length;
+  var pct = total ? (done / total) : 0;
+  return {total: total, done: done, pct: pct};
+}
+
+function pctText(p) {
+  return Math.round(p * 100) + "%";
+}
+
+var tab = "today";
+var selectedDay = todayKey(new Date());
+
+var VIEWS = {
+  today:    {t:"Hoy"},
+  records:  {t:"Registros"},
+  week:     {t:"Semana"},
+  month:    {t:"Mes"},
+  settings: {t:"Ajustes"}
+};
+
+function renderNav() {
+  var nav = document.getElementById("nav");
+  var html = "";
+  var keys = ["today","records","week","month","settings"];
+  keys.forEach(function(k){
+    var v = VIEWS[k];
+    var active = (tab === k) ? "active" : "";
+    html += "<button class=\"" + active + "\" onclick=\"go('" + k + "')\"><span>•</span>" + v.t + "</button>";
+  });
+  nav.innerHTML = html;
+}
+
+function go(t) {
+  tab = t;
+  render();
+}
+
+function card(inner) {
+  return "<div class=\"card\">" + inner + "</div>";
+}
+
+function row(d, k) {
+  var l = dayLogs(k)[d.id] || {};
+  var c = CATS[d.cat];
+  var sum = [];
+  if (l.min) sum.push(l.min + " min");
+  if (l.km) sum.push(l.km + " km");
+  if (l.text) sum.push(l.text);
+  var extra = "";
+  if (sum.length) {
+    extra = "<small>" + sum.join(" · ") + "</small>";
+  }
+  var cls = l.done ? "on" : "";
+  var mark = l.done ? "✓" : "";
+  return "<div class=\"row\">" +
+    "<button class=\"check " + cls + "\" style=\"--c:" + c.c + "\" onclick=\"toggleLog('" + d.id + "','" + k + "')\">" + mark + "</button>" +
+    "<div class=\"name\"><b>" + d.emoji + " " + d.name + "</b>" + extra + "</div>" +
+    "<button class=\"plus\" onclick=\"openDetail('" + d.id + "','" + k + "')\">+</button>" +
+    "</div>";
+}
+
+function toggleLog(id, k) {
+  if (!db.logs[k]) db.logs[k] = {};
+  var l = db.logs[k][id];
+  if (!l) {
+    l = {done:false};
+    db.logs[k][id] = l;
+  }
+  l.done = !l.done;
+  if (l.done) l.at = new Date().toISOString();
+  save();
+  render();
+}
+
+function toggleDef(id) {
+  var d = null;
+  for (var i=0;i<db.defs.length;i++){
+    if (db.defs[i].id === id){ d = db.defs[i]; break; }
+  }
+  if (!d) return;
+  d.active = !d.active;
+  save();
+  render();
+}
+
+function delDef(id) {
+  if (!confirm("¿Eliminar este elemento y sus registros?")) return;
+  var newDefs = [];
+  db.defs.forEach(function(x){
+    if (x.id !== id) newDefs.push(x);
+  });
+  db.defs = newDefs;
+  var keys = Object.keys(db.logs);
+  keys.forEach(function(k){
+    if (db.logs[k] && db.logs[k][id]) {
+      delete db.logs[k][id];
+    }
+  });
+  save();
+  render();
+}
+
+function editDef(id) {
+  var d = null;
+  for (var i=0;i<db.defs.length;i++){
+    if (db.defs[i].id === id){ d = db.defs[i]; break; }
+  }
+  if (!d) return;
+  var html = "<h2>Editar</h2>" +
+    "<label>Nombre</label>" +
+    "<input id=\"edName\" value=\"" + d.name + "\">" +
+    "<label>Emoji</label>" +
+    "<input id=\"edEmoji\" value=\"" + d.emoji + "\">" +
+    "<button class=\"primary\" onclick=\"saveDef('" + id + "')\">Guardar</button>";
+  openSheet(html);
+}
+
+function saveDef(id) {
+  var d = null;
+  for (var i=0;i<db.defs.length;i++){
+    if (db.defs[i].id === id){ d = db.defs[i]; break; }
+  }
+  if (!d) return;
+  var name = document.getElementById("edName").value;
+  var emoji = document.getElementById("edEmoji").value;
+  d.name = name;
+  d.emoji = emoji || CATS[d.cat].e;
+  save();
+  closeSheet();
+  render();
+}
+
+function openDetail(id, k) {
+  var d = null;
+  for (var i=0;i<db.defs.length;i++){
+    if (db.defs[i].id === id){ d = db.defs[i]; break; }
+  }
+  if (!d) return;
+  var l = dayLogs(k)[d.id] || {};
+  var fields = "";
+
+  if (d.cat === "meal") {
+    fields += "<label>¿Qué has comido?</label>" +
+      "<textarea id=\"dText\">" + (l.text || "") + "</textarea>";
+  }
+  if (d.cat === "sport" || d.cat === "equipment" || d.cat === "study") {
+    fields += "<label>Duración (min)</label>" +
+      "<input id=\"dMin\" type=\"number\" inputmode=\"numeric\" value=\"" + (l.min || "") + "\">";
+  }
+  if (d.cat === "sport" || d.cat === "equipment") {
+    fields += "<label>Distancia (km)</label>" +
+      "<input id=\"dKm\" type=\"number\" inputmode=\"decimal\" value=\"" + (l.km || "") + "\">";
+  }
+  if (d.cat === "sport") {
+    fields += "<label>Calorías</label>" +
+      "<input id=\"dCal\" type=\"number\" inputmode=\"numeric\" value=\"" + (l.cal || "") + "\">";
+  }
+  if (d.cat === "equipment") {
+    fields += "<label>Series</label>" +
+      "<input id=\"dSets\" type=\"number\" inputmode=\"numeric\" value=\"" + (l.sets || "") + "\">" +
+      "<label>Repeticiones</label>" +
+      "<input id=\"dReps\" type=\"number\" inputmode=\"numeric\" value=\"" + (l.reps || "") + "\">" +
+      "<label>Peso (kg)</label>" +
+      "<input id=\"dWeight\" type=\"number\" inputmode=\"decimal\" value=\"" + (l.weight || "") + "\">";
+  }
+
+  fields += "<label>Notas</label>" +
+    "<textarea id=\"dNotes\">" + (l.notes || "") + "</textarea>" +
+    "<button class=\"primary\" onclick=\"saveDetail('" + id + "','" + k + "')\">Guardar</button>";
+
+  openSheet("<h2><span>" + d.emoji + "</span> " + d.name + "</h2>" + fields);
+}
+
+function saveDetail(id, k) {
+  if (!db.logs[k]) db.logs[k] = {};
+  var l = db.logs[k][id];
+  if (!l) {
+    l = {};
+    db.logs[k][id] = l;
+  }
+  l.done = true;
+  l.at = new Date().toISOString();
+
+  var dMin = document.getElementById("dMin");
+  var dKm  = document.getElementById("dKm");
+  var dCal = document.getElementById("dCal");
+  var dSets = document.getElementById("dSets");
+  var dReps = document.getElementById("dReps");
+  var dWeight = document.getElementById("dWeight");
+  var dText = document.getElementById("dText");
+  var dNotes = document.getElementById("dNotes");
+
+  l.min = dMin ? (+dMin.value || null) : null;
+  l.km  = dKm  ? (+dKm.value  || null) : null;
+  l.cal = dCal ? (+dCal.value || null) : null;
+  l.sets = dSets ? (+dSets.value || null) : null;
+  l.reps = dReps ? (+dReps.value || null) : null;
+  l.weight = dWeight ? (+dWeight.value || null) : null;
+  l.text = dText ? (dText.value || null) : null;
+  l.notes = dNotes ? (dNotes.value || null) : null;
+
+  save();
+  closeSheet();
+  render();
+}
+
+function openDay(k) {
+  selectedDay = k;
+  var p = progress(k);
+  var rows = "";
+  db.defs.forEach(function(d){
+    if (d.active) rows += row(d, k);
+  });
+  var dateObj = new Date(k + "T12:00");
+  var dateStr = dateObj.toLocaleDateString("es-ES", {weekday:"long", day:"numeric", month:"long"});
+  openSheet(
+    "<h2>" + dateStr + "</h2>" +
+    "<div class=\"small\">Progreso: " + pctText(p.pct) + " · " + p.done + "/" + p.total + "</div>" +
+    rows
+  );
+}
+
+function addDef() {
+  var opts = "";
+  var keys = Object.keys(CATS);
+  keys.forEach(function(k){
+    var c = CATS[k];
+    opts += "<option value=\"" + k + "\">" + c.e + " " + c.t + "</option>";
+  });
+  var html = "<h2>Nuevo elemento</h2>" +
+    "<label>Categoría</label>" +
+    "<select id=\"ndCat\">" + opts + "</select>" +
+    "<label>Nombre</label>" +
+    "<input id=\"ndName\" placeholder=\"Ej. Correr, Cinta, Inglés\">" +
+    "<label>Emoji</label>" +
+    "<input id=\"ndEmoji\" placeholder=\"Opcional\">" +
+    "<button class=\"primary\" onclick=\"saveNew()\">Guardar</button>";
+  openSheet(html);
+}
+
+function saveNew() {
+  var cat = document.getElementById("ndCat").value;
+  var name = document.getElementById("ndName").value.trim();
+  if (!name) return;
+  var emoji = document.getElementById("ndEmoji").value.trim();
+  var newDef = {
+    id: String(Date.now()),
+    cat: cat,
+    name: name,
+    emoji: emoji || CATS[cat].e,
+    active: true
+  };
+  db.defs.push(newDef);
+  save();
+  closeSheet();
+  render();
+}
+
+function exportData() {
+  var dataStr = "data:application/json," + encodeURIComponent(JSON.stringify(db, null, 2));
+  var a = document.createElement("a");
+  a.href = dataStr;
+  a.download = "midia-backup.json";
+  a.click();
+}
+
+function importData(e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  var reader = new FileReader();
+  reader.onload = function() {
+    try {
+      db = JSON.parse(reader.result);
+      save();
+      render();
+      alert("Copia importada.");
+    } catch (err) {
+      alert("Archivo no válido.");
+    }
+  };
+  reader.readAsText(f);
+}
+
+function openSheet(html) {
+  document.getElementById("sheetInner").innerHTML = html;
+  document.getElementById("sheet").classList.add("open");
+}
+
+function closeSheet() {
+  document.getElementById("sheet").classList.remove("open");
+}
+
+function render() {
+  renderNav();
+  var v = document.getElementById("view");
+  var t = document.getElementById("title");
+  var s = document.getElementById("subtitle");
+  var fab = document.getElementById("fab");
+
+  fab.style.display = (tab === "records" || tab === "settings") ? "block" : "none";
+
+  if (tab === "today") {
+    t.textContent = "Hoy";
+    var k = todayKey(new Date());
+    var p = progress(k);
+    var dateObj = new Date();
+    s.textContent = dateObj.toLocaleDateString("es-ES", {weekday:"long", day:"numeric", month:"long"});
+
+    var html = card(
+      "<div class=\"big\">" + pctText(p.pct) + "</div>" +
+      "<div class=\"progress\"><div style=\"width:" + (p.pct*100) + "%\"></div></div>" +
+      "<div class=\"center\" style=\"margin-top:8px\">" +
+        (p.total - p.done === 0 ? "¡Día completado!" : (p.total - p.done) + " actividades pendientes") +
+      "</div>"
+    );
+
+    var keys = Object.keys(CATS);
+    keys.forEach(function(ck){
+      var c = CATS[ck];
+      var items = [];
+      db.defs.forEach(function(d){
+        if (d.cat === ck && d.active) items.push(d);
+      });
+      var inner = "<h2><span>" + c.e + "</span> " + c.t + "</h2>";
+      if (items.length === 0) {
+        inner += "<div class=\"small\">Sin elementos configurados.</div>";
+      } else {
+        items.forEach(function(d){
+          inner += row(d, k);
+        });
+      }
+      html += card(inner);
+    });
+
+    v.innerHTML = html;
+    return;
+  }
+
+  if (tab === "records") {
+    t.textContent = "Registros";
+    s.textContent = "Configura tus medicamentos, comidas, deporte, máquinas y estudios";
+    var html = "";
+    var keys = Object.keys(CATS);
+    keys.forEach(function(ck){
+      var c = CATS[ck];
+      var items = [];
+      db.defs.forEach(function(d){
+        if (d.cat === ck) items.push(d);
+      });
+      var inner = "<h2><span>" + c.e + "</span> " + c.t + "</h2>";
+      if (items.length === 0) {
+        inner += "<div class=\"small\">Sin elementos.</div>";
+      } else {
+        items.forEach(function(d){
+          inner += "<div class=\"row\">" +
+            "<div class=\"name\"><b>" + d.emoji + " " + d.name + "</b><small>" + (d.active ? "Activo" : "Inactivo") + "</small></div>" +
+            "<button class=\"plus\" onclick=\"toggleDef('" + d.id + "')\">" + (d.active ? "✓" : "○") + "</button>" +
+            "<button class=\"plus\" onclick=\"editDef('" + d.id + "')\">✎</button>" +
+            "<button class=\"plus\" onclick=\"delDef('" + d.id + "')\">🗑</button>" +
+            "</div>";
+        });
+      }
+      html += card(inner);
+    });
+    v.innerHTML = html;
+    return;
+  }
+
+  if (tab === "week") {
+    t.textContent = "Semana";
+    s.textContent = "Cumplimiento de los últimos 7 días";
+    var days = [];
+    var now = new Date();
+    for (var i = 6; i >= 0; i--) {
+      var d = new Date();
+      d.setDate(now.getDate() - i);
+      days.push(d);
+    }
+    var html = "";
+    days.forEach(function(d){
+      var k = todayKey(d);
+      var p = progress(k);
+      html += "<div class=\"bar\">" +
+        "<div style=\"width:34px\">" + d.toLocaleDateString("es-ES",{weekday:"narrow"}) + "</div>" +
+        "<div class=\"track\"><div style=\"width:" + (p.pct*100) + "%\"></div></div>" +
+        "<div style=\"width:44px;text-align:right\">" + pctText(p.pct) + "</div>" +
+        "</div>";
+    });
+    html = card(html) + card("<h2>Resumen</h2>");
+
+    var keys = Object.keys(CATS);
+    keys.forEach(function(ck){
+      var c = CATS[ck];
+      var items = [];
+      db.defs.forEach(function(d){
+        if (d.cat === ck && d.active) items.push(d);
+      });
+      var done = 0, total = 0;
+      days.forEach(function(d){
+        var k = todayKey(d);
+        items.forEach(function(i){
+          total++;
+          var l = dayLogs(k)[i.id];
+          if (l && l.done) done++;
+        });
+      });
+      var p = total ? (done/total) : 0;
+      html += card(
+        "<div class=\"bar\">" +
+        "<div style=\"width:110px\">" + c.e + " " + c.t + "</div>" +
+        "<div class=\"track\"><div style=\"width:" + (p*100) + "%\"></div></div>" +
+        "<div style=\"width:44px;text-align:right\">" + pctText(p) + "</div>" +
+        "</div>"
+      );
+    });
+
+    v.innerHTML = html;
+    return;
+  }
+
+  if (tab === "month") {
+    t.textContent = "Mes";
+    var now = new Date();
+    s.textContent = now.toLocaleDateString("es-ES", {month:"long", year:"numeric"});
+    var y = now.getFullYear();
+    var m = now.getMonth();
+    var first = new Date(y, m, 1);
+    var start = (first.getDay() + 6) % 7;
+    var daysInMonth = new Date(y, m+1, 0).getDate();
+
+    var cells = "";
+    for (var i = 0; i < start; i++) cells += "<div></div>";
+    for (var d = 1; d <= daysInMonth; d++) {
+      var kd = todayKey(new Date(y, m, d));
+      var p = progress(kd);
+      var style = "";
+      if (p.total) {
+        var alpha = 0.15 + p.pct * 0.75;
+        style = "background:rgba(79,140,255," + alpha + ")";
+      }
+      cells += "<div class=\"day" + (p.total ? " has" : "") + "\" style=\"" + style + "\" onclick=\"openDay('" + kd + "')\">" + d + "</div>";
+    }
+
+    var calHtml = "<div class=\"cal\">" +
+      "<div class=\"small\" style=\"text-align:center\">L</div>" +
+      "<div class=\"small\" style=\"text-align:center\">M</div>" +
+      "<div class=\"small\" style=\"text-align:center\">X</div>" +
+      "<div class=\"small\" style=\"text-align:center\">J</div>" +
+      "<div class=\"small\" style=\"text-align:center\">V</div>" +
+      "<div class=\"small\" style=\"text-align:center\">S</div>" +
+      "<div class=\"small\" style=\"text-align:center\">D</div>" +
+      cells +
+      "</div>";
+
+    v.innerHTML = card(calHtml) + card("<h2>Progreso del mes</h2><div class=\"small\">Toca un día para ver su detalle.</div>");
+    return;
+  }
+
+  if (tab === "settings") {
+    t.textContent = "Ajustes";
+    s.textContent = "Privacidad, copia de seguridad y recordatorios";
+    v.innerHTML =
+      card("<h2>Privacidad</h2><div class=\"small\">Tus datos se guardan solo en este iPhone, dentro de Safari. No hay cuenta, sincronización ni envío a terceros.</div>") +
+      card("<h2>Copia de seguridad</h2>" +
+        "<button class=\"primary\" onclick=\"exportData()\">Exportar datos</button>" +
+        "<div style=\"height:8px\"></div>" +
+        "<button class=\"primary\" style=\"background:var(--card2);color:var(--text)\" onclick=\"document.getElementById('importFile').click()\">Importar datos</button>" +
+        "<input type=\"file\" id=\"importFile\" accept=\".json\" style=\"display:none\" onchange=\"importData(event)\">\"" +
+      "</div>") +
+      card("<h2>Aviso</h2><div class=\"small\">Esta aplicación es una herramienta personal de registro. No realiza diagnósticos ni modifica pautas médicas.</div>");
+    return;
+  }
+}
+
+document.getElementById("sheet").onclick = function(e){
+  if (e.target.id === "sheet") closeSheet();
+};
+document.getElementById("fab").onclick = addDef;
+
+render();
+
+})();
+</script>
+</body>
+</html>
